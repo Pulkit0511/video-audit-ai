@@ -16,15 +16,7 @@ from backend.src.services.video_indexer import VideoIndexerService
 logger = logging.getLogger('video-audit-ai')
 logging.basicConfig(level=logging.INFO)
 
-# Insures the env variables are not missing
-def get_env_var(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        raise ValueError(f"Missing required env var: {name}")
-    return value
-
 # NODE 1: Indexer (converting vid to text)
-
 def index_video_node(state: VideoAuditState) -> Dict[str, Any]:
     '''
     Downloads the yt video from the url
@@ -95,9 +87,9 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
     )
 
     vector_store = AzureSearch(
-        azure_search_endpoint=get_env_var('AZURE_SEARCH_ENDPOINT'),
-        azure_search_key=get_env_var('AZURE_SEARCH_API_KEY'),
-        index_name=get_env_var('AZURE_SEARCH_INDEX_NAME'),
+        azure_search_endpoint=os.getenv('AZURE_SEARCH_ENDPOINT'),
+        azure_search_key=os.getenv('AZURE_SEARCH_API_KEY'),
+        index_name=os.getenv('AZURE_SEARCH_INDEX_NAME'),
         embedding_function=embeddings.embed_query
     )
 
@@ -132,7 +124,6 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
                 TRANSCRIPT: {transcript}
                 ON-SCREEN TEXT (OCR): {ocr_text}
                 """
-    response = None     # setting to None for type safety in Exception
 
     try:
         response= llm.invoke([
@@ -142,10 +133,7 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
         content = str(response.content)
 
         if '```' in content:
-            match = re.search(r"```(?:json)?(.?)```", content, re.DOTALL)
-
-            if match:
-                content = match.group(1)
+            content = re.search(r"```(?:json)?(.?)```", content, re.DOTALL).group(1)
         
         audit_data= json.loads(content.strip())
         return {
@@ -157,7 +145,7 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f'System Error in Auditor Node : {str(e)}')
 
-        logger.error(f'Raw LLM Response : {response.content if response else 'None'}')
+        logger.error(f'Raw LLM Response : {response.content if 'response' in locals() else 'None'}')
         return {
             'errors': [str(e)],
             'final_status': 'FAIL'
