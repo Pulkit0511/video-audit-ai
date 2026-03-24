@@ -39,7 +39,7 @@ def index_video_node(state: VideoAuditState) -> Dict[str, Any]:
             raise Exception('Please provide a valid YouTube URL for this test.')
         
         azure_video_id= vi_service.upload_video(local_path, video_name= video_id_input)
-        logger.info(f'Uplaod Success. Azure ID: {azure_video_id}')
+        logger.info(f'Upload Success. Azure ID: {azure_video_id}')
 
         if(os.path.exists(local_path)):
             os.remove(local_path)

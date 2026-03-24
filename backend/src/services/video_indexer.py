@@ -51,10 +51,14 @@ class VideoIndexerService:
         logger.info(f'Downloading Youtube video: {url}')
 
         ydl_opts = {
-            'format': 'best[ext=mp4]',
+            'format': 'best',
             'outtmpl': output_path,
-            'quiet': True,
-            'overwrites': True
+            'quiet': False,
+            'no_warnings': False,
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
         }
 
         try:
@@ -87,13 +91,16 @@ class VideoIndexerService:
         if response.status_code != 200:
             raise Exception(f'Azure Upload Failed: {response.text}')
         
+        video_id = response.json().get('id')
+        return video_id
+        
     def wait_for_processing(self, video_id):
         logger.info(f'Waiting for the video {video_id} to process......')
         while True:
             arm_token = self.get_access_token()
             vi_token = self.get_account_token(arm_token)
 
-            url = f'https://api.videoIndexer.ai/{self.location}/Accounts/{self.account_id}/Videos'
+            url = f'https://api.videoIndexer.ai/{self.location}/Accounts/{self.account_id}/Videos/{video_id}/Index'
             params = {'accessToken': vi_token}
             response = requests.get(url, params=params)
             data = response.json()
