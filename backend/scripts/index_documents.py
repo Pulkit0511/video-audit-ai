@@ -26,16 +26,17 @@ def index_docs():
 
     logger.info("="*60)
     logger.info('Environment Configuration Check: ')
-    logger.info(f'AZURE_OPENAI_ENDPOINT : {os.getenv('AZURE_OPENAI_ENDPOINT')}')
-    logger.info(f'AZURE_OPEN_API_VERSION : {os.getenv('AZURE_OPEN_API_VERSION')}')
+    logger.info(f'AZURE_OPENAI_CHAT_ENDPOINT : {os.getenv('AZURE_OPENAI_CHAT_ENDPOINT')}')
+    logger.info(f'AZURE_OPENAI_CHAT_API_VERSION : {os.getenv('AZURE_OPENAI_CHAT_API_VERSION')}')
+    logger.info(f'AZURE_OPENAI_EMBEDDING_API_VERSION : {os.getenv('AZURE_OPENAI_EMBEDDING_API_VERSION')}')
     logger.info(f'EMBEDDING_DEPLOYMENT : {os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small')}')
     logger.info(f'AZURE_SEARCH_ENDPOINT : {os.getenv('AZURE_SEARCH_ENDPOINT')}')
     logger.info(f'AZURE_SEARCH_INDEX_NAME : {os.getenv('AZURE_SEARCH_INDEX_NAME')}')
     logger.info("="*60)
 
     required_vars=[
-        'AZURE_OPENAI_ENDPOINT',
-        'AZURE_OPENAI_API_KEY',
+        'AZURE_OPENAI_CHAT_ENDPOINT',
+        'AZURE_OPENAI_CHAT_API_KEY',
         'AZURE_SEARCH_ENDPOINT',
         'AZURE_SEARCH_API_KEY',
         'AZURE_SEARCH_INDEX_NAME'
@@ -51,9 +52,9 @@ def index_docs():
         logger.info('Initializing Azure Open AI Embeddings ......')
         embeddings = AzureOpenAIEmbeddings(
             azure_deployment= os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small'),
-            azure_endpoint= os.getenv('AZURE_OPENAI_ENDPOINT'),
-            api_key= os.getenv('AZURE_OPENAI_API_KEY'),
-            api_version = os.getenv('AZURE_OPEN_API_VERSION', '2024-02-01')
+            azure_endpoint= os.getenv('AZURE_OPENAI_CHAT_ENDPOINT'),
+            api_key= os.getenv('AZURE_OPENAI_EMBEDDING_API_KEY'),
+            openai_api_version = os.getenv('AZURE_OPENAI_EMBEDDING_API_VERSION', '2024-02-01')
         )
         logger.info('Embeddings model initialized successfully')
     except Exception as e:

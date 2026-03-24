@@ -76,14 +76,18 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
         }
     
     llm = AzureChatOpenAI(
-        azure_deployment= os.getenv('AZURE_OPENAI_CHAT_DEPLOYMENT'),
-        api_version= os.getenv('AZURE_OPEN_API_VERSION'),
-        temperature= 0.0
+        azure_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_CHAT_ENDPOINT"),
+        openai_api_version=os.getenv("AZURE_OPENAI_CHAT_API_VERSION"),
+        temperature=0.0,
+        api_key=os.getenv('AZURE_OPENAI_CHAT_API_KEY')
     )
 
     embeddings = AzureOpenAIEmbeddings(
-        azure_deployment= os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT'),
-        api_version= os.getenv('AZURE_OPEN_API_VERSION')
+        azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_EMBEDDING_ENDPOINT"),
+        openai_api_version=os.getenv("AZURE_OPENAI_EMBEDDING_API_VERSION"),
+        api_key=os.getenv('AZURE_OPENAI_EMBEDDING_API_KEY')
     )
 
     vector_store = AzureSearch(
@@ -94,7 +98,7 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
     )
 
     ocr_text = state.get('ocr_text', [])
-    query_text = f'{transcript} {''.join(ocr_text)}'
+    query_text = f"{transcript} {''.join(ocr_text)}"
     docs = vector_store.similarity_search(query_text, k=3)
     retrieved_rules = '\n\n'.join([doc.page_content for doc in docs])
 
@@ -107,16 +111,16 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
             2. Identify ANY violations of the rules.
             3. Return strictly JSON in the following format:
             {{
-                'compliance_results': [{{
-                    'category': 'Claim Validation',
-                    'severity': 'CRITICAL',
-                    'description': "Explanation of the violation..."
-                }}].
-                'status': 'FAIL',
-                'final_report': 'Summary of findings...'
+                "compliance_results": [{{
+                    "category": "Claim Validation",
+                    "severity": "CRITICAL",
+                    "description": "Explanation of the violation..."
+                }}],
+                "status": "FAIL",
+                "final_report": "Summary of findings..."
             }}
 
-            If no violations are found, set 'status' to 'PASS' and 'compliance_results' to [].
+            If no violations are found, set "status" to "PASS" and "compliance_results" to [].
             """
     
     user_message = f"""
@@ -133,7 +137,9 @@ def audio_content_node(state: VideoAuditState) -> Dict[str, Any]:
         content = str(response.content)
 
         if '```' in content:
-            content = re.search(r"```(?:json)?(.?)```", content, re.DOTALL).group(1)
+            match = re.search(r"```(?:json)?\s*(.*?)```", content, re.DOTALL)
+            if match:
+                content = match.group(1)
         
         audit_data= json.loads(content.strip())
         return {
