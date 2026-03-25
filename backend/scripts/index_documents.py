@@ -1,6 +1,7 @@
 import os
 import glob
 import logging
+import uuid
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
@@ -9,6 +10,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_community.vectorstores import AzureSearch
+
+from backend.src.utils.vector_store_utils import safe_close_azuresearch
 
 logging.basicConfig(
     level= logging.INFO,
@@ -26,17 +29,17 @@ def index_docs():
 
     logger.info("="*60)
     logger.info('Environment Configuration Check: ')
-    logger.info(f'AZURE_OPENAI_CHAT_ENDPOINT : {os.getenv('AZURE_OPENAI_CHAT_ENDPOINT')}')
-    logger.info(f'AZURE_OPENAI_CHAT_API_VERSION : {os.getenv('AZURE_OPENAI_CHAT_API_VERSION')}')
-    logger.info(f'AZURE_OPENAI_EMBEDDING_API_VERSION : {os.getenv('AZURE_OPENAI_EMBEDDING_API_VERSION')}')
-    logger.info(f'EMBEDDING_DEPLOYMENT : {os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small')}')
-    logger.info(f'AZURE_SEARCH_ENDPOINT : {os.getenv('AZURE_SEARCH_ENDPOINT')}')
-    logger.info(f'AZURE_SEARCH_INDEX_NAME : {os.getenv('AZURE_SEARCH_INDEX_NAME')}')
+    logger.info(f"AZURE_OPENAI_EMBEDDING_ENDPOINT : {os.getenv('AZURE_OPENAI_EMBEDDING_ENDPOINT')}")
+    logger.info(f"AZURE_OPENAI_CHAT_API_VERSION : {os.getenv('AZURE_OPENAI_CHAT_API_VERSION')}")
+    logger.info(f"AZURE_OPENAI_EMBEDDING_API_VERSION : {os.getenv('AZURE_OPENAI_EMBEDDING_API_VERSION')}")
+    logger.info(f"EMBEDDING_DEPLOYMENT : {os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small')}")
+    logger.info(f"AZURE_SEARCH_ENDPOINT : {os.getenv('AZURE_SEARCH_ENDPOINT')}")
+    logger.info(f"AZURE_SEARCH_INDEX_NAME : {os.getenv('AZURE_SEARCH_INDEX_NAME')}")
     logger.info("="*60)
 
     required_vars=[
-        'AZURE_OPENAI_CHAT_ENDPOINT',
-        'AZURE_OPENAI_CHAT_API_KEY',
+        'AZURE_OPENAI_EMBEDDING_ENDPOINT',
+        'AZURE_OPENAI_EMBEDDING_API_KEY',
         'AZURE_SEARCH_ENDPOINT',
         'AZURE_SEARCH_API_KEY',
         'AZURE_SEARCH_INDEX_NAME'
@@ -52,7 +55,7 @@ def index_docs():
         logger.info('Initializing Azure Open AI Embeddings ......')
         embeddings = AzureOpenAIEmbeddings(
             azure_deployment= os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small'),
-            azure_endpoint= os.getenv('AZURE_OPENAI_CHAT_ENDPOINT'),
+            azure_endpoint= os.getenv('AZURE_OPENAI_EMBEDDING_ENDPOINT'),
             api_key= os.getenv('AZURE_OPENAI_EMBEDDING_API_KEY'),
             openai_api_version = os.getenv('AZURE_OPENAI_EMBEDDING_API_VERSION', '2024-02-01')
         )
@@ -72,7 +75,7 @@ def index_docs():
             index_name= index_name,
             embedding_function = embeddings.embed_query
         )
-        logger.info('Vector Store initialized for index: {index_name}')
+        logger.info('Vector Store initialized for index: %s', index_name)
     except Exception as e:
         logger.error(f'Failed to initialize Azure Search : {e}')
         logger.error('Please verify your Azure Search API key, index name and endpoint')
@@ -80,7 +83,7 @@ def index_docs():
     
     pdf_files = glob.glob(os.path.join(data_folder, '*.pdf'))
     if not pdf_files:
-        logger.warn(f'No PDFs found in {data_folder}. Please add files.')
+        logger.warning(f'No PDFs found in {data_folder}. Please add files.')
     logger.info(f'Found {len(pdf_files)} PDFs to process: {[os.path.basename(f) for f in pdf_files]}')
 
     all_splits = []
@@ -98,25 +101,32 @@ def index_docs():
             splits = text_splitter.split_documents(raw_docs)
             for split in splits:
                 split.metadata['source'] = os.path.basename(pdf_path)
+                split.metadata["chunk_id"] = str(uuid.uuid4())
 
             all_splits.extend(splits)
             logger.info(f'Split into {len(splits)} chunks.')
         except Exception as e:
             logger.error(f'Failed to process {pdf_path} : {e}')
         
+    try:
         if all_splits:
-            logger.info(f'Uploading {len(all_splits)} chunks to Azure AI Search Index "{index_name}')
-            try:
-                vector_store.add_documents(documents = all_splits)
-                logger.info('='*60)
-                logger.info('Indexing Complete! Knowledge Base is ready....')
-                logger.info(f'Total chunks indexed : {len(all_splits)}')
-                logger.info('='*60)
-            except Exception as e:
-                logger.error(f"Failed to upload the documents to Azure Search : {e}")
-                logger.error('Please check the Azure Search configuration and try again.')
+            logger.info(
+                f'Uploading {len(all_splits)} chunks to Azure AI Search Index "{index_name}"'
+            )
+
+            vector_store.add_documents(documents=all_splits)
+
+            logger.info('=' * 60)
+            logger.info('Indexing Complete! Knowledge Base is ready....')
+            logger.info(f'Total chunks indexed : {len(all_splits)}')
+            logger.info('=' * 60)
         else:
             logger.warning('No documents were processed.')
+
+    finally:
+        if 'vector_store' in locals():
+            safe_close_azuresearch(vector_store)
+            del vector_store
 
 if __name__ == '__main__':
     index_docs()

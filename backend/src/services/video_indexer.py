@@ -15,6 +15,20 @@ class VideoIndexerService:
         self.resource_group = os.getenv('AZURE_RESOURCE_GROUP')
         self.vi_name = os.getenv('AZURE_VI_NAME')
         self.credential = DefaultAzureCredential()
+        self._account_token = None
+        self._token_expiry = 0
+    
+    def get_vi_token(self):
+        if self._account_token and time.time() < self._token_expiry:
+            return self._account_token
+
+        arm_token = self.get_access_token()
+        vi_token = self.get_account_token(arm_token)
+
+        self._account_token = vi_token
+        self._token_expiry = time.time() + 50 * 60  # ~50 min
+
+        return vi_token
     
     def get_access_token(self):
         '''
@@ -42,6 +56,7 @@ class VideoIndexerService:
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code != 200:
             raise Exception(f'Failed to get VI Account token: {response.text}')
+
         return response.json().get('accessToken')
     
     def download_youtube_video(self, url, output_path='temp_video.mp4'):
@@ -70,8 +85,7 @@ class VideoIndexerService:
             raise Exception(f'Youtube video download failed: {str(e)}')
         
     def upload_video(self, video_path, video_name):
-        arm_token = self.get_access_token()
-        vi_token = self.get_account_token(arm_token)
+        vi_token = self.get_vi_token()
 
         api_url = f'https://api.videoIndexer.ai/{self.location}/Accounts/{self.account_id}/Videos'
 
@@ -90,19 +104,24 @@ class VideoIndexerService:
 
         if response.status_code != 200:
             raise Exception(f'Azure Upload Failed: {response.text}')
-        
+
         video_id = response.json().get('id')
         return video_id
         
-    def wait_for_processing(self, video_id):
+    def wait_for_processing(self, video_id, timeout_minutes=30):
+        start = time.time()
+
         logger.info(f'Waiting for the video {video_id} to process......')
         while True:
-            arm_token = self.get_access_token()
-            vi_token = self.get_account_token(arm_token)
+            if time.time() - start > timeout_minutes * 60:
+                raise Exception("Video indexing timeout")
+            
+            vi_token = self.get_vi_token()
 
             url = f'https://api.videoIndexer.ai/{self.location}/Accounts/{self.account_id}/Videos/{video_id}/Index'
             params = {'accessToken': vi_token}
             response = requests.get(url, params=params)
+
             data = response.json()
 
             state = data.get('state')

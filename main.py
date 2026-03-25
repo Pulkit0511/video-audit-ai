@@ -35,21 +35,31 @@ def run_cli_simulation():
     try:
         final_state = app.invoke(initial_inputs)
 
+        audit_result = final_state.get("audit_result")
+
+        if not audit_result:
+            print("\nNo audit result produced.")
+            return
+
         print('\n Compliance Audit Report ==')
-        print(f'Video ID: {final_state.get('video_id')}')
-        print(f'Status: {final_state.get('final_status')}')
+        print(f'Video ID: {final_state.get("video_id")}')
+        print(f'Status: {audit_result.status}')
+
         print('\n [ VIOLATIONS DETECTED ]')
-        
-        results = final_state.get('compliance_results', [])
+
+        results = audit_result.compliance_results
 
         if results:
             for issue in results:
-                print(f'- [{issue.get('severity')}] {issue.get('category')} : {issue.get('description')}')
+                print(
+                    f'- [{issue.severity}] '
+                    f'{issue.category} : {issue.description}'
+                )
         else:
             print('No violations found.')
-        
+
         print('\n[FINAL SUMMARY]')
-        print(final_state.get('final_report'))
+        print(audit_result.final_report)
 
     except Exception as e:
         logger.error(f'Workflow Execution Failed: {str(e)}')
